@@ -24,22 +24,26 @@ export async function POST(req: Request) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const { name, color } = await req.json();
+    const { name, color }: { name: string; color?: string } = await req.json();
 
     if (!name) {
-      return new NextResponse('Bad Request', { status: 401 });
+      return new NextResponse('Name is required', { status: 400 });
+    }
+
+    if (!session.user.id) {
+      return new NextResponse('User ID is missing', { status: 400 });
     }
 
     const label = await db.label.create({
       data: {
         userId: session.user.id,
         name,
-        color,
+        color: color || undefined,
       },
     });
 
     return NextResponse.json(label, { status: 200 });
   } catch (error) {
-    return new NextResponse('Internal server error', { status: 500 });
+    return new NextResponse('Error creating label', { status: 500 });
   }
 }

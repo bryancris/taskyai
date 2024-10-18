@@ -14,22 +14,24 @@ interface StatusCheckboxProps {
   task?: Task | null;
   subtask?: Subtask;
   className?: string;
-  disabled?: boolean;
+  onStatusChange?: (isComplete: boolean) => void;
+  isComplete?: boolean;
 }
 
 export default function StatusCheckbox({
   task,
   subtask,
   className,
-  disabled,
+  onStatusChange,
+  isComplete,
 }: StatusCheckboxProps) {
   const [isCompleted, setIsCompleted] = React.useState(
-    task?.isComplete || subtask?.isComplete || false,
+    isComplete ?? task?.isComplete ?? subtask?.isComplete ?? false,
   );
   const router = useRouter();
 
   if (!task && !subtask)
-    return <Checkbox className={className} disabled={disabled} />;
+    return <Checkbox className={className} />;
 
   const onToggleStatus = async () => {
     try {
@@ -75,6 +77,9 @@ export default function StatusCheckbox({
       }
 
       setIsCompleted(updatedStatus);
+      if (onStatusChange) {
+        onStatusChange(updatedStatus);
+      }
       router.refresh();
     } catch (error) {
       handleError(error);
@@ -89,7 +94,7 @@ export default function StatusCheckbox({
 
   return (
     <Checkbox
-      checked={isCompleted}
+      checked={isComplete ?? isCompleted}
       onCheckedChange={onToggleStatus}
       className={priorityClassnames[task?.priority || '']}
     />

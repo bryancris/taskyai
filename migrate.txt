@@ -1,0 +1,163 @@
+Migration Plan: Taskify Project to Local Development Environment with PostgreSQL
+
+1. Backend Setup (.NET 6.0 API)
+
+1.1. Environment Setup:
+    - Ensure .NET 6.0 SDK is installed on your local machine
+    - Install PostgreSQL locally (https://www.postgresql.org/download/)
+    - Install the Npgsql Entity Framework Core provider:
+        dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL
+
+1.2. Database Setup:
+    - Open pgAdmin or use the psql command-line tool
+    - Create a new database named 'TaskifyDB':
+        CREATE DATABASE "TaskifyDB";
+
+1.3. Project Setup:
+    - Navigate to /Users/bryanmcafee/taskyai/server/
+    - Open server.sln in Visual Studio or Visual Studio Code
+
+1.4. Configuration:
+    - Update appsettings.json and appsettings.Development.json:
+        - Update the connection string in "DefaultConnection" to use PostgreSQL:
+          "DefaultConnection": "Host=localhost;Database=TaskifyDB;Username=your_username;Password=your_password"
+    - Update appsettings.Development.json if necessary
+
+1.5. Code Changes:
+    - Open Program.cs
+    - Replace the UseSqlServer method with UseNpgsql:
+        builder.Services.AddDbContext<ApplicationContext>(x => x.UseNpgsql(connectionString));
+    - Update any SQL Server-specific queries in your controllers or services to be PostgreSQL compatible
+
+1.6. Update server.csproj:
+    - Open server.csproj
+    - Replace the Microsoft.EntityFrameworkCore.SqlServer package with Npgsql.EntityFrameworkCore.PostgreSQL
+    - Update other packages if necessary
+
+1.7. Dependencies:
+    - Open a terminal in the server directory
+    - Run: dotnet restore
+
+1.8. Database Migration:
+    - Remove existing migrations:
+        dotnet ef migrations remove
+    - Create a new initial migration:
+        dotnet ef migrations add InitialCreate
+    - Apply the migration:
+        dotnet ef database update
+    - This will create the necessary tables in your local PostgreSQL database
+
+1.9. Run the Backend:
+    - In the terminal, run:
+        dotnet run
+    - The API should now be running on https://localhost:7232 and http://localhost:5152
+
+1.10. Verify API:
+    - Open a browser and navigate to http://localhost:5152/swagger
+    - You should see the Swagger UI with all available endpoints
+
+2. Frontend Setup (Next.js)
+
+[No changes needed for the frontend setup]
+
+3. Testing the Local Setup
+
+3.1. Backend Tests:
+    - Ensure the backend is running (step 1.9)
+    - Use Swagger UI (http://localhost:5152/swagger) to test various API endpoints
+    - Verify that database operations are working correctly
+
+[No changes needed for frontend tests]
+
+4. Additional Considerations
+
+4.1. Database Seeding:
+    - Initial data seeding is configured in SeedData.cs
+    - Review and update the seeding process if necessary to ensure compatibility with PostgreSQL
+    - This will populate your local database with some initial data
+
+4.2. PostgreSQL-specific Considerations:
+    - Ensure that your PostgreSQL server is running and accessible
+    - If you encounter any issues with case-sensitivity, you may need to update your queries or model configurations
+    - PostgreSQL uses different data types than SQL Server, so review your model properties to ensure they map correctly
+
+4.3. Performance Tuning:
+    - Consider adding appropriate indexes to your PostgreSQL tables for optimal performance
+    - Review and optimize any complex queries for PostgreSQL
+
+4.4. Backup and Restore:
+    - Familiarize yourself with PostgreSQL backup and restore procedures for your local development environment
+
+[No changes needed for CORS Configuration, Authentication, and Environment Variables sections]
+
+5. Next Steps
+
+[No changes needed for Local Development Workflow and Deployment Considerations]
+
+6. PostgreSQL Resources
+
+6.1. Documentation:
+    - PostgreSQL official documentation: https://www.postgresql.org/docs/
+    - Npgsql documentation: https://www.npgsql.org/efcore/
+
+6.2. Tools:
+    - pgAdmin: GUI tool for PostgreSQL management
+    - DBeaver: Universal database tool with PostgreSQL support
+
+6.3. Best Practices:
+    - Follow PostgreSQL naming conventions
+    - Use appropriate data types for your columns
+    - Implement proper indexing strategies
+    - Regularly vacuum and analyze your database for optimal performance
+
+By following this updated plan, you should have a fully functional local development environment for both the frontend and backend of your Taskify project, now using PostgreSQL as the database. This setup will allow you to develop and test features locally before deploying to production environments like Cloudflare Pages for the frontend and a suitable hosting platform for the .NET backend with PostgreSQL support.
+
+7. CI/CD Pipeline Compatibility
+
+7.1. Review Current CI/CD Setup:
+    - Examine any existing CI/CD configurations in Vercel or other platforms
+    - Identify the steps, environment variables, and build commands used in the pipeline
+
+7.2. Local Environment Alignment:
+    - Ensure your local .env.local file for the frontend and appsettings.Development.json for the backend reflect the CI/CD environment variables
+    - Create a .env.ci file in the client directory to mimic CI environment if necessary
+
+7.3. Build and Test Scripts:
+    - Create or update build and test scripts to match CI/CD processes
+    - For the frontend: Add a build script in package.json that mirrors the CI build process
+    - For the backend: Create a build.sh script that includes dotnet restore, build, and test commands
+
+7.4. Docker Considerations:
+    - If your CI/CD uses Docker, create a Dockerfile for both frontend and backend to ensure consistency across environments
+
+8. Current Progress and Remaining Tasks
+
+8.1. Completed Tasks:
+    - Updated necessary files to use .NET 8.0 and PostgreSQL
+    - Created and applied initial migration for PostgreSQL
+    - Backend server running and accessible via HTTPS at https://localhost:7232
+    - Updated CORS policy to include both HTTP and HTTPS URLs for localhost
+    - Implemented user registration and login functionality
+    - Successfully tested tasks endpoint
+    - Verified frontend API configuration
+
+8.2. Remaining Tasks:
+    - Perform full local testing of the application (frontend + backend)
+    - Update CI/CD pipeline for the new PostgreSQL setup
+
+8.3. Next Steps:
+    - Start the frontend development server
+    - Perform end-to-end testing of the application
+    - Review and update CI/CD pipeline configuration
+    - Test deployment process with the new PostgreSQL setup
+
+8.4. Final Verification:
+    - Ensure all features are working correctly in the local environment
+    - Verify that the application can be built and run without errors
+    - Check that all API endpoints are functioning as expected
+    - Confirm that the frontend can successfully communicate with the backend
+    - Verify that data is being correctly stored and retrieved from the PostgreSQL database
+
+8.5. Documentation:
+    - Update project README with local development setup instructions
+    - Document any changes made to the project structure or configuration

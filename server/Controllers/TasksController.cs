@@ -1,14 +1,13 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
-using NuGet.ProjectModel;
 using server.Context;
 using server.Models;
 using server.Services;
 using System.Globalization;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
+using Task = System.Threading.Tasks.Task;
+using Subtask = server.Models.Subtask;
+using Label = server.Models.Label;
 using TaskModel = server.Models.Task;
 
 
@@ -30,20 +29,20 @@ namespace server.Controllers
         // GET: api/Tasks
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskModel>>> GetTasks(
-            [FromQuery] Guid? listId,
-            [FromQuery] Guid? labelId,
-            [FromQuery] Guid? projectId,
-            [FromQuery] string? dueDate,
-            [FromQuery] bool? unsorted = false,
-            [FromQuery] bool? upcoming = false,
-            [FromQuery] bool? overdue = false,
-            [FromQuery] bool? pending = false,
-            [FromQuery] bool? incomplete = false,
-            [FromQuery] bool? completed = false
+            [FromQuery] Guid? listId = null,
+            [FromQuery] Guid? labelId = null,
+            [FromQuery] Guid? projectId = null,
+            [FromQuery] string? dueDate = null,
+            [FromQuery] bool unsorted = false,
+            [FromQuery] bool upcoming = false,
+            [FromQuery] bool overdue = false,
+            [FromQuery] bool pending = false,
+            [FromQuery] bool incomplete = false,
+            [FromQuery] bool completed = false
             )
         {
-            IQueryable<TaskModel> tasksQuery = _context.Tasks;
-
+            IQueryable<TaskModel> tasksQuery = _context.Tasks ?? throw new InvalidOperationException("Entity set 'ApplicationContext.Tasks' is null.");
+            
             if (listId.HasValue)
             {
                 tasksQuery = tasksQuery.Where(task => task.ListId == listId);
@@ -57,7 +56,7 @@ namespace server.Controllers
             if (labelId.HasValue)
             {
                 // Tasks with a specific label
-                tasksQuery = tasksQuery.Where(task => task.Labels.Any(label => label.Id == labelId));
+                tasksQuery = tasksQuery.Where(task => task.Labels.Any(label => label.Id == labelId.Value));
             }
 
             if (unsorted == true)
@@ -69,21 +68,21 @@ namespace server.Controllers
             {
                 // Filter tasks that are upcoming (due date is after today and task is not completed)
                 tasksQuery = tasksQuery
-                    .Where(task => task.DueDate > DateTime.Now && task.Status == Status.Incomplete)
-                    .OrderBy(task => task.DueDate);
+                    .Where(task => task.DueDate.HasValue && task.DueDate.Value > DateTime.UtcNow && task.Status == Status.Incomplete)
+                    .OrderBy(task => task.DueDate ?? DateTime.MaxValue);
             }
 
             if (overdue == true)
             {
                 // Filter tasks that are overdue (due date is before today and task is not completed)
                 tasksQuery = tasksQuery
-                    .Where(task => task.DueDate < DateTime.Now && task.Status == Status.Incomplete);
+                    .Where(task => task.DueDate.HasValue && task.DueDate.Value < DateTime.UtcNow && task.Status == Status.Incomplete);
             }
 
             if (incomplete == true)
             {
                 tasksQuery = tasksQuery.Where(task =>
-                    task.Status == Status.Incomplete &&
+                    task.Status == Status.Incomplete && 
                     !task.Subtasks.Any(subtask => subtask.IsCompleted));
             }
 
@@ -91,7 +90,7 @@ namespace server.Controllers
             {
                 tasksQuery = tasksQuery.Where(task =>
                     task.Status != Status.Completed &&
-                    task.Subtasks != null && task.Subtasks.Any(subtask => subtask.IsCompleted));
+                    task.Subtasks.Any(subtask => subtask.IsCompleted));
             }
 
             if (completed == true)
@@ -105,16 +104,12 @@ namespace server.Controllers
                 DateTime parsedDueDate = DateTime.ParseExact(dueDate, "dd-MM-yyyy", CultureInfo.InvariantCulture);
 
                 tasksQuery = tasksQuery
-                    .Where(task => task.DueDate.HasValue &&
-                                   task.DueDate.Value.Year == parsedDueDate.Year &&
-                                   task.DueDate.Value.Month == parsedDueDate.Month &&
-                                   task.DueDate.Value.Day == parsedDueDate.Day);
+                    .Where(task => task.DueDate.HasValue && task.DueDate.Value.Date == parsedDueDate.Date);
             }
 
             var tasks = await tasksQuery
                 .Include(t => t.Labels)
                 .Include(t => t.Subtasks)
-
                 .ToListAsync();
 
             return tasks;
@@ -124,13 +119,13 @@ namespace server.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<TaskModel>> GetTask(Guid id)
         {
-            if (_context.Tasks == null)
+            if (_context.Tasks is null)
             {
                 return NotFound();
             }
             var task = await _context.Tasks
-               .Include(task => task.Labels)
-               .FirstOrDefaultAsync(t => t.Id == id);
+                .Include(t => t.Labels)
+                .FirstOrDefaultAsync(t => t.Id == id);
 
             if (task == null)
             {
@@ -191,14 +186,14 @@ namespace server.Controllers
         [Authorize]
         public async Task<ActionResult<TaskModel>> PostTask(TaskModel task)
         {
-            if (_context.Tasks == null)
+            if (_context.Tasks is null)
             {
                 return Problem("Entity set 'ApplicationContext.Task' is null.");
             }
 
             task.UserId = _userService.GetUserId();
 
-            if (string.IsNullOrEmpty(task.Name))
+            if (string.IsNullOrWhiteSpace(task.Name))
             {
                 return BadRequest("Name field is required.");
             }
@@ -237,13 +232,13 @@ namespace server.Controllers
 
             try
             {
-                // Remove labels first. Probably wanna do this onCascade
+                // Remove the task (labels will be handled by cascade delete)
                 _context.Tasks.Remove(task);
                 await _context.SaveChangesAsync();
 
                 return NoContent();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return StatusCode(500, "Internal server error");
             }
@@ -252,9 +247,9 @@ namespace server.Controllers
         // POST: api/Tasks/2/Subtask
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost("{id}/subtask")]
-        public async Task<ActionResult<Subtask>> PostSubtask(Guid id, Subtask subtask)
+        public async Task<ActionResult<Models.Subtask>> PostSubtask(Guid id, Models.Subtask subtask)
         {
-            if (_context.Subtasks == null)
+            if (_context.Subtasks is null)
             {
                 return Problem("Entity set 'ApplicationContext.Subtask'  is null.");
             }
@@ -279,11 +274,11 @@ namespace server.Controllers
 
         // POST: api/Tasks/2/RecurringTask
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost("{id}/reccuring_task")]
+        [HttpPost("{id}/recurring_task")]
         [Authorize]
-        public async Task<ActionResult<RecurringTask>> PostRecurringTask(Guid id, RecurringTask recurringTask)
+        public async Task<ActionResult<Models.RecurringTask>> PostRecurringTask(Guid id, Models.RecurringTask recurringTask)
         {
-            if (_context.RecurringTasks == null)
+            if (_context.RecurringTasks is null)
             {
                 return Problem("Entity set 'ApplicationContext.RecurringTask'  is null.");
             }
@@ -307,25 +302,28 @@ namespace server.Controllers
                 var task = await _context.Tasks.FindAsync(taskId);
                 var label = await _context.Labels.FindAsync(labelId);
 
-                if (task != null && label != null)
+                if (task == null || label == null)
                 {
-                    // Initialize the Labels collection if it's null
-                    if (task.Labels == null)
-                    {
-                        task.Labels = new List<Label>();
-                    }
+                    return BadRequest("Invalid task or label.");
+                }
 
+                if (task.Labels == null)
+                {
+                    task.Labels = new List<Label>();
+                }
+
+                if (!task.Labels.Contains(label))
+                {
                     task.Labels.Add(label);
                     await _context.SaveChangesAsync();
-
                     return Ok("Label added to the task successfully.");
                 }
                 else
                 {
-                    return BadRequest("Invalid task or label.");
+                    return BadRequest("Label is already associated with the task.");
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return StatusCode(500, "Internal server error");
             }
@@ -339,7 +337,8 @@ namespace server.Controllers
         {
 
             // Find the task based on taskId
-            var task = await _context.Tasks.Include(t => t.Labels)
+            var task = await _context.Tasks
+                .Include(t => t.Labels)
                 .FirstOrDefaultAsync(t => t.Id == taskId);
 
             if (task == null)
@@ -356,7 +355,7 @@ namespace server.Controllers
             }
 
             // Check if the label is associated with the task before removing
-            if (task.Labels.Contains(label))
+            if (task.Labels != null && task.Labels.Contains(label))
             {
                 // Remove the label from the task's Labels collection
                 task.Labels.Remove(label);
@@ -374,7 +373,7 @@ namespace server.Controllers
 
         private bool TaskExists(Guid id)
         {
-            return (_context.Tasks?.Any(e => e.Id == id)).GetValueOrDefault();
+            return _context.Tasks.Any(e => e.Id == id);
         }
 
         private bool IsAuthorized(Guid taskId)

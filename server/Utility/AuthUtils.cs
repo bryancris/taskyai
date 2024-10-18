@@ -1,8 +1,11 @@
-﻿    using System.IdentityModel.Tokens.Jwt;
+﻿using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
-using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using server.Models;
+using Microsoft.AspNetCore.Http;
+using System.Text.Json;
 
 namespace server.Utility
 {
@@ -13,31 +16,6 @@ namespace server.Utility
         public AuthUtils(IConfiguration configuration)
         {
             _configuration = configuration;
-        }
-
-        public string CreateToken(User user)
-        {
-            List<Claim> claims = new List<Claim>
-            {
-                new Claim("Id", user.Id.ToString()),
-                new Claim("Name", user.Name),
-                new Claim("Email", user.Email),
-                // new Claim(ClaimTypes.Role, "User")
-            };
-
-            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(
-                _configuration.GetSection("AppSettings:Token").Value));
-
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
-
-            var token = new JwtSecurityToken(
-                claims: claims,
-                expires: DateTime.Now.AddDays(1),
-                signingCredentials: creds);
-
-            var jwt = new JwtSecurityTokenHandler().WriteToken(token);
-
-            return jwt;
         }
 
         public void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
@@ -57,5 +35,60 @@ namespace server.Utility
                 return computedHash.SequenceEqual(passwordHash);
             }
         }
+
+        public string CreateToken(User user)
+        {
+            List<Claim> claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Email, user.Email)
+            };
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+                _configuration.GetSection("AppSettings:Token").Value));
+
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
+
+            var token = new JwtSecurityToken(
+                claims: claims,
+                expires: DateTime.Now.AddDays(1),
+                signingCredentials: creds);
+
+            var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+
+            return jwt;
+        }
+
+        public RefreshToken GenerateRefreshToken()
+        {
+            var refreshToken = new RefreshToken
+            {
+                Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+                Expires = DateTime.Now.AddDays(7),
+                Created = DateTime.Now
+            };
+
+            return refreshToken;
+        }
+
+        public void SetRefreshToken(RefreshToken newRefreshToken, HttpResponse response)
+        {
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Expires = newRefreshToken.Expires
+            };
+            response.Cookies.Append("refreshToken", newRefreshToken.Token, cookieOptions);
+
+            // You might want to store the refresh token in the database as well
+            // associated with the user for validation purposes
+        }
+    }
+
+    public class RefreshToken
+    {
+        public string Token { get; set; } = string.Empty;
+        public DateTime Created { get; set; } = DateTime.Now;
+        public DateTime Expires { get; set; }
     }
 }

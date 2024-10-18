@@ -32,6 +32,10 @@ export async function POST(req: Request) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
+    if (typeof session.user.id !== 'string') {
+      return new NextResponse('User ID is missing', { status: 400 });
+    }
+
     const { name, listId, description, dueDate, priority } = await req.json();
 
     if (!name) {

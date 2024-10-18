@@ -5,24 +5,25 @@
 namespace server.Migrations
 {
     /// <inheritdoc />
-    public partial class RenameIsCompleted : Migration
+    public partial class AddUsernameToUser : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.RenameColumn(
-                name: "isCompleted",
-                table: "Subtasks",
-                newName: "IsCompleted");
+            migrationBuilder.AddColumn<string>(
+                name: "Username",
+                table: "Users",
+                type: "text",
+                nullable: false,
+                defaultValue: "");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.RenameColumn(
-                name: "IsCompleted",
-                table: "Subtasks",
-                newName: "isCompleted");
+            migrationBuilder.DropColumn(
+                name: "Username",
+                table: "Users");
         }
     }
 }

@@ -1,16 +1,17 @@
-﻿using Azure.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Tokens;
 using server.Context;
 using server.Models;
 using server.Services;
 using server.Utility;
-using System.Configuration;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
+using System.Security.Cryptography;
 
 namespace server.Controllers
 {
@@ -32,23 +33,11 @@ namespace server.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<ActionResult<string>> Login(UserDto req)
+        public async Task<ActionResult<object>> Login(UserDto req)
         {
-
-            if (req.Email == null)
-            {
-                return BadRequest("Email is required.");
-            }
-
-            if (req.Password == null)
-            {
-                return BadRequest("Password is required.");
-            }
-
-            string lowerCaseEmail = req.Email.ToLower();
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == lowerCaseEmail);
-
+            Console.WriteLine($"Login attempt for user: {req.Username}");
+            
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == req.Username);
             if (user == null)
             {
                 return BadRequest("User not found.");
@@ -61,60 +50,12 @@ namespace server.Controllers
 
             string token = _auth.CreateToken(user);
 
-            return Ok(token);
+            var refreshToken = _auth.GenerateRefreshToken();
+            _auth.SetRefreshToken(refreshToken, Response);
+
+            return Ok(new { token = token, refreshToken = refreshToken.Token });
         }
 
-        [HttpPost("register")]
-        public async Task<ActionResult<User>> Register(UserDto req)
-        {
-            if (req.Email == null || req.Name == null || req.Password == null)
-            {
-                return BadRequest("Missing fields.");
-            }
-
-            var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == req.Email);
-            if (existingUser != null)
-            {
-                return BadRequest("Email already exists.");
-            }
-
-            User user = new User
-            {
-                Id = Guid.NewGuid(),
-                Email = req.Email,
-                Name = req.Name
-            };
-
-            _auth.CreatePasswordHash(req.Password, out byte[] passwordHash, out byte[] passwordSalt);
-
-            user.PasswordSalt = passwordSalt;
-            user.PasswordHash = passwordHash;
-
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            return user;
-        }
-
-        [HttpGet("validate-token")]
-        [Authorize]
-        public ActionResult ValidateToken()
-        {
-            var currentUser = _userService.GetCurrentUser();
-            return Ok(currentUser);
-        }
-
-        [HttpPost("logout"), Authorize]
-        public ActionResult Logout()
-        {
-            return Ok("Logout successful");
-        }
-
-        [HttpGet("current-user"), Authorize]
-        public ActionResult<User> GetCurrentUser()
-        {
-            var currentUser = _userService.GetCurrentUser();
-            return Ok(currentUser);
-        }
+        // RefreshToken class and GenerateRefreshToken method are now in AuthUtils
     }
 }

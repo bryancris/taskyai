@@ -1,18 +1,20 @@
-import { redirect } from 'next/navigation';
-import { db } from '@/lib/db';
+import { AxiosError } from 'axios';
 import { auth } from '@/lib/auth';
-import { LOGIN_PATH } from '@/routes';
+import { api } from '@/lib/api';
+import type { Label } from '@/types';
 
 export const getLabels = async () => {
   const session = await auth();
 
   if (!session || !session.user) {
-    redirect(LOGIN_PATH);
+    throw new Error('Unauthorized');
   }
 
-  const labels = await db.label.findMany({
-    where: { userId: session.user?.id },
-  });
-
-  return labels;
+  try {
+    const response = await api.get<Label[]>('/api/Labels');
+    return response.data;
+  } catch (error: unknown) {
+    if (error instanceof AxiosError) throw error;
+    return [];
+  }
 };

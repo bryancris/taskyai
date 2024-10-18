@@ -1,5 +1,4 @@
-/* eslint-disable no-useless-catch */
-import { AxiosResponse } from 'axios';
+import { AxiosResponse, AxiosError } from 'axios';
 import { api } from '@/lib/api';
 import { Task, TaskEntry } from '@/types';
 import { SearchParamsOptions, queryParamsMapping } from '@/lib/util/filter';
@@ -15,7 +14,11 @@ export const TaskService = {
       const response: AxiosResponse<Task> = await api.post('/tasks', task);
       return response.data;
     } catch (err) {
-      throw err;
+      if (err instanceof AxiosError) {
+        throw new Error(err.response?.data?.message || 'Failed to create task');
+      } else {
+        throw new Error('An unexpected error occurred');
+      }
     }
   },
   // Define default value for the entire argument using Partial
@@ -44,7 +47,11 @@ export const TaskService = {
 
       return response.data;
     } catch (err) {
-      throw err;
+      if (err instanceof AxiosError) {
+        throw new Error(err.response?.data?.message || 'Failed to fetch tasks');
+      } else {
+        throw new Error('An unexpected error occurred');
+      }
     }
   },
   getTask: async (taskId: string): Promise<Task> => {
@@ -52,7 +59,11 @@ export const TaskService = {
       const response: AxiosResponse = await api.get(`/tasks/${taskId}`);
       return response.data;
     } catch (err) {
-      throw err;
+      if (err instanceof AxiosError) {
+        throw new Error(err.response?.data?.message || 'Failed to fetch task');
+      } else {
+        throw new Error('An unexpected error occurred');
+      }
     }
   },
   updateTask: async (taskId: string, updatedTask: TaskEntry): Promise<Task> => {
@@ -63,7 +74,11 @@ export const TaskService = {
       );
       return response.data;
     } catch (err) {
-      throw err;
+      if (err instanceof AxiosError) {
+        throw new Error(err.response?.data?.message || 'Failed to update task');
+      } else {
+        throw new Error('An unexpected error occurred');
+      }
     }
   },
   deleteTask: async (taskId: string): Promise<Task> => {
@@ -71,7 +86,11 @@ export const TaskService = {
       const response: AxiosResponse = await api.delete(`/tasks/${taskId}`);
       return response.data;
     } catch (err) {
-      throw err;
+      if (err instanceof AxiosError) {
+        throw new Error(err.response?.data?.message || 'Failed to delete task');
+      } else {
+        throw new Error('An unexpected error occurred');
+      }
     }
   },
   addLabel: async ({ taskId, labelId }: TaskLabelRelation): Promise<void> => {
@@ -82,7 +101,11 @@ export const TaskService = {
       );
       return response.data;
     } catch (err) {
-      throw err;
+      if (err instanceof AxiosError) {
+        throw new Error(err.response?.data?.message || 'Failed to add label to task');
+      } else {
+        throw new Error('An unexpected error occurred');
+      }
     }
   },
   removeLabel: async ({
@@ -95,7 +118,11 @@ export const TaskService = {
       );
       return response.data;
     } catch (err) {
-      throw err;
+      if (err instanceof AxiosError) {
+        throw new Error(err.response?.data?.message || 'Failed to remove label from task');
+      } else {
+        throw new Error('An unexpected error occurred');
+      }
     }
   },
 };

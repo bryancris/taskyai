@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import toast from 'react-hot-toast';
 
 import { BoardContainer, ListContainer } from '@/components/ui/container';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import { DatePicker } from './date-picker';
 import type { Label, List, Task } from '@/types';
 import { cn } from '@/lib/util/tw-merge';
 import { useTaskStore } from '@/store/modal-store';
+import { api } from '@/lib/api';
 
 interface TaskItemProps {
   task?: Task;
@@ -37,6 +39,17 @@ function TaskItem({ task, lists, type = 'list', labels, date }: TaskItemProps) {
 
   const onSelectTask = (task: Task) => {
     setTask(task);
+  };
+
+  const updateTaskStatus = async (taskId: string, isComplete: boolean) => {
+    try {
+      await api.put(`/api/Tasks/${taskId}`, {
+        isComplete
+      });
+      // Update local state or refetch tasks if necessary
+    } catch (error) {
+      toast.error('Failed to update task status');
+    }
   };
 
   if (isOpen) {
@@ -74,7 +87,7 @@ function TaskItem({ task, lists, type = 'list', labels, date }: TaskItemProps) {
       <div className="flex-gap items-start">
         {/* Toggle task status */}
         <div className="pt-1">
-          <StatusCheckbox task={task} />
+          <StatusCheckbox task={task} onStatusChange={isComplete => updateTaskStatus(task.id, isComplete)} />
         </div>
         <div className="w-full">
           <div className="flex-between w-full">

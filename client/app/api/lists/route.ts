@@ -23,7 +23,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const session = await auth();
-
+    
     if (!session || !session.user) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
@@ -32,6 +32,10 @@ export async function POST(req: Request) {
 
     if (!name) {
       return new NextResponse('Bad Request', { status: 401 });
+    }
+
+    if (!session.user.id) {
+      return new NextResponse('User ID is missing', { status: 400 });
     }
 
     const lastList = await db.list.findFirst({
@@ -43,7 +47,7 @@ export async function POST(req: Request) {
     const order = lastList ? lastList.order : 1;
     const list = await db.list.create({
       data: {
-        userId: session.user.id,
+        userId: session.user.id!,
         name,
         order,
       },

@@ -27,9 +27,9 @@ namespace server.Controllers
         {
             if (_context.Subtasks == null)
             {
-                return NotFound();
+                return NotFound("Subtasks not found.");
             }
-            return await _context.Subtasks.ToListAsync();
+            return await _context.Subtasks.ToListAsync() ?? new List<Subtask>();
         }
 
         // GET: api/Subtasks/5
@@ -38,16 +38,16 @@ namespace server.Controllers
         {
             if (_context.Subtasks == null)
             {
-                return NotFound();
+                return NotFound("Subtasks not found.");
             }
             var subtask = await _context.Subtasks.FindAsync(id);
 
             if (subtask == null)
             {
-                return NotFound();
+                return NotFound($"Subtask with id {id} not found.");
             }
 
-            return subtask;
+            return Ok(subtask);
         }
 
         // PUT: api/Subtasks/5
@@ -57,7 +57,12 @@ namespace server.Controllers
         {
             if (id != subtask.Id)
             {
-                return BadRequest();
+                return BadRequest("The provided id does not match the subtask id.");
+            }
+
+            if (!SubtaskExists(id))
+            {
+                return NotFound($"Subtask with id {id} not found.");
             }
 
             _context.Entry(subtask).State = EntityState.Modified;
@@ -69,13 +74,8 @@ namespace server.Controllers
             catch (DbUpdateConcurrencyException)
             {
                 if (!SubtaskExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                    return NotFound($"Subtask with id {id} no longer exists.");
+                throw;
             }
 
             var subtasks = _context.Subtasks.Where(s => s.TaskId == subtask.TaskId);
@@ -83,19 +83,17 @@ namespace server.Controllers
             // Check if at least one subtask is incomplete
             var anySubtaskIncomplete = subtasks.Any(s => !s.IsCompleted);
             // Check if all subtasks are completed
-            var allSubtasksCompleted = subtasks.All(s => s.IsCompleted);
+            var allSubtasksCompleted = !anySubtaskIncomplete;
 
-            if (allSubtasksCompleted || anySubtaskIncomplete)
+            // Update the status of the associated task
+            var taskToUpdate = await _context.Tasks.FindAsync(subtask.TaskId);
+
+            if (taskToUpdate != null)
             {
-                // Update the status of the associated task
-                var taskToUpdate = await _context.Tasks.FindAsync(subtask.TaskId);
-
-                if (taskToUpdate != null)
-                {
-                    taskToUpdate.Status = allSubtasksCompleted ? Status.Completed : Status.Incomplete;
-                    await _context.SaveChangesAsync();
-                }
+                taskToUpdate.Status = allSubtasksCompleted ? Status.Completed : Status.Incomplete;
+                await _context.SaveChangesAsync();
             }
+
 
             return NoContent();
         }
@@ -107,11 +105,16 @@ namespace server.Controllers
         {
             if (_context.Subtasks == null)
             {
-                return Problem("Entity set 'ApplicationContext.Subtask'  is null.");
+                return Problem("Entity set 'ApplicationContext.Subtask' is null.");
             }
+
+            if (subtask == null)
+            {
+                return BadRequest("Subtask data is invalid.");
+            }
+
             _context.Subtasks.Add(subtask);
             await _context.SaveChangesAsync();
-
             return CreatedAtAction("GetSubtask", new { id = subtask.Id }, subtask);
         }
         // DELETE: api/Subtasks/5
@@ -120,18 +123,18 @@ namespace server.Controllers
         {
             if (_context.Subtasks == null)
             {
-                return NotFound();
+                return NotFound("Subtasks not found.");
             }
             var subtask = await _context.Subtasks.FindAsync(id);
             if (subtask == null)
             {
-                return NotFound();
+                return NotFound($"Subtask with id {id} not found.");
             }
 
             _context.Subtasks.Remove(subtask);
             await _context.SaveChangesAsync();
 
-            return NoContent();
+            return Ok($"Subtask with id {id} has been deleted.");
         }
 
         private bool SubtaskExists(Guid id)

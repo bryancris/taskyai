@@ -1,46 +1,49 @@
-import { redirect } from 'next/navigation';
-import { startOfDay, addDays, parseISO } from 'date-fns';
-import { db } from '@/lib/db';
+import { AxiosError } from 'axios';
 import { auth } from '@/lib/auth';
-import { LOGIN_PATH } from '@/routes';
-import { SearchParamsOptions } from '@/lib/util/filter';
+import { api } from '@/lib/api';
+import type { SearchParamsOptions } from '@/lib/util/filter';
+import { Task } from '@/types';
 
 export const getTasks = async (options?: SearchParamsOptions) => {
   const session = await auth();
 
   if (!session || !session.user) {
-    redirect(LOGIN_PATH);
+    throw new Error('Unauthorized');
   }
 
-  const today = startOfDay(new Date());
-  const tomorrow = startOfDay(addDays(new Date(), 1));
+  try {
+    const queryParams = new URLSearchParams();
 
-  let dueDateRange;
+    if (options?.listId) {
+      queryParams.append('listId', options.listId);
+    }
 
-  if (options?.today) {
-    dueDateRange = {
-      gte: today.toISOString(),
-      lt: tomorrow.toISOString(),
-    };
-  } else if (options?.dueDate) {
-    const customDate = startOfDay(parseISO(options.dueDate));
-    dueDateRange = {
-      gte: customDate.toISOString(),
-      lt: startOfDay(addDays(customDate, 1)).toISOString(),
-    };
+    if (options?.today) {
+      queryParams.append('today', 'true');
+    } else if (options?.dueDate) {
+      queryParams.append('dueDate', options.dueDate);
+    }
+
+    const response = await api.get<Task[]>(`/api/Tasks?${queryParams.toString()}`);
+    return response.data;
+  } catch (error: unknown) {
+    if (error instanceof AxiosError) throw error;
+    throw error;
+  }
+};
+
+export const getTask = async (taskId: string) => {
+  const session = await auth();
+
+  if (!session || !session.user) {
+    throw new Error('Unauthorized');
   }
 
-  const tasks = await db.task.findMany({
-    where: {
-      userId: session.user?.id,
-      listId: options?.listId ?? null,
-      dueDate: dueDateRange,
-    },
-    include: {
-      subtasks: true,
-      labels: true,
-    },
-  });
-
-  return tasks;
+  try {
+    const response = await api.get<Task>(`/api/Tasks/${taskId}`);
+    return response.data;
+  } catch (error: unknown) {
+    if (error instanceof AxiosError) throw error;
+    throw error;
+  }
 };

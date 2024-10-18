@@ -79,7 +79,7 @@ function SubtaskForm({
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="w-full">
         <div className="flex-gap">
-          <StatusCheckbox disabled className="border-primary bg-primary/10" />
+          <StatusCheckbox className="border-primary bg-primary/10" />
           <Input
             transparent
             autoFocus

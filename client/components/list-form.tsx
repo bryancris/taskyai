@@ -47,7 +47,7 @@ function ListForm({ list, onClose }: FormProps) {
       setIsLoading(true);
 
       if (list) {
-        ListService.updateList(list.id, { id: list.id, ...data });
+        ListService.updateList(list.id, data);
         toast.success('List updated!');
       } else {
         await ListService.createList(data);
