@@ -87,7 +87,7 @@ function TaskItem({ task, lists, type = 'list', labels, date }: TaskItemProps) {
       <div className="flex-gap items-start">
         {/* Toggle task status */}
         <div className="pt-1">
-          <StatusCheckbox task={task} onStatusChange={isComplete => updateTaskStatus(task.id, isComplete)} />
+          <StatusCheckbox task={task} onStatusChange={(isComplete) => updateTaskStatus(task.id, isComplete)} />
         </div>
         <div className="w-full">
           <div className="flex-between w-full">

@@ -1,7 +1,6 @@
 import * as React from 'react';
 
 import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
 import type { Subtask, Task } from '@/types';
 
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,7 +14,6 @@ interface StatusCheckboxProps {
   subtask?: Subtask;
   className?: string;
   onStatusChange?: (isComplete: boolean) => void;
-  isComplete?: boolean;
 }
 
 export default function StatusCheckbox({
@@ -23,12 +21,8 @@ export default function StatusCheckbox({
   subtask,
   className,
   onStatusChange,
-  isComplete,
 }: StatusCheckboxProps) {
-  const [isCompleted, setIsCompleted] = React.useState(
-    isComplete ?? task?.isComplete ?? subtask?.isComplete ?? false,
-  );
-  const router = useRouter();
+  const isCompleted = task?.isComplete ?? subtask?.isComplete ?? false;
 
   if (!task && !subtask)
     return <Checkbox className={className} />;
@@ -38,32 +32,9 @@ export default function StatusCheckbox({
       const updatedStatus = !isCompleted;
 
       if (task && !subtask) {
-        // Ensure a complete task with subtasks doesn't have completed subtasks
-        /*
-        const hasCompletedSubtasks =
-          task.subtasks &&
-          task.subtasks.length > 0 &&
-          task.subtasks.every((subtask) => subtask.isCompleted);
-
-        if (isCompleted && hasCompletedSubtasks) {
-          throw new Error(
-            'To mark this task as incomplete, uncheck a subtask.',
-          );
-        }
-
-        // Ensure an incomplete task with incomplete tasks doesn't get marked as done
-        const hasIncompleteSubtasks = task.subtasks?.some(
-          (subtask) => !subtask.isCompleted,
-        );
-
-        if (!isCompleted && hasIncompleteSubtasks) {
-          throw new Error('You have unfinished subtasks.');
-        }
-        */
-
         await TaskService.updateTask(task.id, {
           ...task,
-          isComplete: !!updatedStatus,
+          isComplete: updatedStatus,
         });
       } else if (subtask && task) {
         await SubtaskService.updateSubtask(task.id, subtask.id, {
@@ -72,15 +43,15 @@ export default function StatusCheckbox({
         });
       }
 
-      if (!isCompleted) {
+      if (updatedStatus) {
         toast.success(task ? 'Task completed!' : 'Subtask completed!');
+      } else {
+        toast.success(task ? 'Task marked as incomplete!' : 'Subtask marked as incomplete!');
       }
 
-      setIsCompleted(updatedStatus);
       if (onStatusChange) {
         onStatusChange(updatedStatus);
       }
-      router.refresh();
     } catch (error) {
       handleError(error);
     }
@@ -94,9 +65,9 @@ export default function StatusCheckbox({
 
   return (
     <Checkbox
-      checked={isComplete ?? isCompleted}
+      checked={isCompleted}
       onCheckedChange={onToggleStatus}
-      className={priorityClassnames[task?.priority || '']}
+      className={`${priorityClassnames[task?.priority || '']} ${className ?? ''}`}
     />
   );
 }

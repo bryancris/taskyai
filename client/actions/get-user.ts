@@ -1,7 +1,7 @@
-import { auth } from '@/lib/auth';
-import { api } from '@/lib/api';
 import type { User } from '@/types';
 import { AxiosError } from 'axios';
+import { api } from '@/lib/api';
+import { auth } from '@/lib/auth';
 
 export const getUserByEmail = async (email: string) => {
   const session = await auth();
@@ -14,7 +14,7 @@ export const getUserByEmail = async (email: string) => {
     const response = await api.get<User>(`/api/Users/by-email/${email}`);
     return response.data;
   } catch (error: unknown) {
-    if (error instanceof AxiosError) console.error('Error fetching user by email:', error.message);
+    if (error instanceof AxiosError) throw new Error(`Error fetching user by email: ${error.message}`);
     throw error;
   }
 };
@@ -30,7 +30,7 @@ export const getUserById = async (id: string) => {
     const response = await api.get<User>(`/api/Users/${id}`);
     return response.data;
   } catch (error: unknown) {
-    if (error instanceof AxiosError) console.error(`Error fetching user with id ${id}:`, error.message);
+    if (error instanceof AxiosError) throw new Error(`Error fetching user with id ${id}: ${error.message}`);
     throw error;
   }
 };

@@ -22,8 +22,8 @@ namespace server
             var builder = WebApplication.CreateBuilder(args);
             Console.WriteLine($"Application started at: {DateTime.UtcNow}");
             // Set the HTTPS port
-            builder.WebHost.UseUrls("https://localhost:7232");
-            Console.WriteLine("Server configured to use HTTPS on port 7232");
+            builder.WebHost.UseUrls("http://*:7232");
+            Console.WriteLine("Server configured to use HTTP on port 7232, binding to all interfaces");
             // Log the environment
 Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}\n");
 
@@ -119,11 +119,16 @@ Console.WriteLine($"[{DateTime.UtcNow}] DbContext configured with connection str
                 options.AddPolicy("AllowAll", builder =>
                 {
                     builder
-                           .AllowAnyOrigin()
+                           .SetIsOriginAllowed(_ => true)
                            .AllowAnyMethod()
                            .AllowAnyHeader()
-                           .WithExposedHeaders("Content-Disposition");
+                           .AllowCredentials()
+                           .WithExposedHeaders("Content-Disposition")
+                           .WithOrigins("http://localhost:3000")
+                           .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                           .WithHeaders("Authorization", "Content-Type");
                 });
+                Console.WriteLine("CORS policy configured");
             });
 
             // Add logging middleware
@@ -170,7 +175,7 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
 
             // Add CORS middleware before routing
             app.UseCors("AllowAll");
-            Console.WriteLine($"[{DateTime.UtcNow}] CORS middleware added");
+            Console.WriteLine($"[{DateTime.UtcNow}] CORS middleware added with AllowAll policy");
 
             // Add middleware to log all requests
             app.Use(async (context, next) =>
@@ -178,6 +183,11 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
                 Console.WriteLine($"[{DateTime.UtcNow}] Request started: {context.Request.Method} {context.Request.Path}");
                 Console.WriteLine($"[{DateTime.UtcNow}] Incoming request: {context.Request.Method} {context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.QueryString}");
                 Console.WriteLine($"Request headers: {string.Join("\n", context.Request.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))}");
+
+                // Log CORS-specific headers
+                Console.WriteLine($"Origin: {context.Request.Headers["Origin"]}");
+                Console.WriteLine($"Access-Control-Request-Method: {context.Request.Headers["Access-Control-Request-Method"]}");
+                Console.WriteLine($"Access-Control-Request-Headers: {context.Request.Headers["Access-Control-Request-Headers"]}");
                 
                 // Log request body for POST requests
                 if (context.Request.Method == "POST" && context.Request.ContentType != null && context.Request.ContentType.StartsWith("application/json"))
@@ -267,9 +277,9 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
                 Console.WriteLine($"[{DateTime.UtcNow}] Request completed. Method: {context.Request.Method}, Path: {context.Request.Path}, Status code: {context.Response.StatusCode}");
             });
 
-            // Force HTTPS redirection
-            app.UseHttpsRedirection();
-            Console.WriteLine("HTTPS redirection enabled");
+            // Disable HTTPS redirection
+            // app.UseHttpsRedirection();
+            Console.WriteLine("HTTPS redirection disabled");
 
             app.UseRouting();
             app.UseAuthentication();

@@ -39,7 +39,6 @@ type AuthSchema<T extends AuthFormProps['variant']> =
   T extends 'login' ? LoginFormValues : RegisterFormValues;
 
 function AuthForm({ variant }: AuthFormProps) {
-  const [formFilled, setFormFilled] = React.useState<boolean>(false);
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -60,54 +59,44 @@ function AuthForm({ variant }: AuthFormProps) {
     defaultValues: { email: '', password: '', name: '', confirmPassword: '' },
   });
 
-  React.useEffect(() => {
-    const values = form.watch();
-    console.log('Form values:', values);
-    const requiredFields = variant === 'register' ? ['email', 'name', 'password', 'confirmPassword'] : ['email', 'password'];
-    setFormFilled(requiredFields.every(field => !!values[field as keyof AuthFormValues]));
-    console.log('Form filled:', formFilled);
-  }, [form, variant]);
 
   const onSubmit: SubmitHandler<AuthFormValues> = async (
     data: AuthSchema<typeof variant>,
   ) => {
     try {
-      console.log('Login attempt started', { email: data.email });
       setIsLoading(true);
 
       if (variant === 'login') {
         const { email, password } = data as LoginFormValues;
-        
-        console.log('Attempting to sign in with:', { email, password: '********' });
-        console.log('NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
-        const result: SignInResponse | undefined = await signIn('credentials', {
+        console.log(`[AuthForm] Attempting login with email: ${email}, password length: ${password.length}, API URL: ${process.env.NEXT_PUBLIC_API_URL}, Current time: ${new Date().toISOString()}, User agent: ${navigator.userAgent}, Network status: ${navigator.onLine ? 'Online' : 'Offline'}`);
+
+        const result = await signIn('credentials', {
           redirect: false,
           email,
-          password,
+          password: password.trim(), // Trim password to remove any accidental whitespace
           callbackUrl: DEFAULT_LOGIN_REDIRECT,
-        });
+        }) as SignInResponse;
+        console.log(`[AuthForm] SignIn function called, waiting for response... Current time: ${new Date().toISOString()}, Network status: ${navigator.onLine ? 'Online' : 'Offline'}`);
 
-        console.log('SignIn result:', JSON.stringify(result, null, 2));
-
-        if (result) {
-          if (result.error) {
-            const errorMessages = {
-              CredentialsSignin: 'Invalid email or password.',
-              EmailSignin: 'Email not verified. Please check your inbox.',
-              default: 'An error occurred during login. Please try again.',
-            };
-            console.error('Login error:', result.error, result);
-            const errorMessage = errorMessages[result.error as keyof typeof errorMessages] || errorMessages.default;
-            toast.error(errorMessage);
-          } else if (result.url) {
-            console.log('Login successful, redirecting to:', result.url);
-            router.push(result.url);
-          } else {
-            console.error('Unexpected result from signIn:', result);
-            toast.error('An unexpected error occurred. Please try again.');
-          }
+        console.log(`[AuthForm] SignIn result received at ${new Date().toISOString()}:`, JSON.stringify(result, null, 2));
+        
+        if (result.error) {
+          const errorMessages = {
+            CredentialsSignin: 'Invalid email or password.',
+            EmailSignin: 'Email not verified. Please check your inbox.',
+            default: 'An error occurred during login. Please try again.',
+          };
+          const errorMessage = errorMessages[result.error as keyof typeof errorMessages] || errorMessages.default;
+          console.error(`[AuthForm] Login error at ${new Date().toISOString()}:`, result.error, 'Full result:', JSON.stringify(result, null, 2), 'Network status:', navigator.onLine ? 'Online' : 'Offline');
+          toast.error(errorMessage);
+        } else if (result.url) {
+          console.log(`[AuthForm] Login successful at ${new Date().toISOString()}, redirecting to:`, result.url);
+          router.push(result.url);
+        } else if (result.ok) {
+          console.log(`[AuthForm] Login successful at ${new Date().toISOString()}, but no URL provided. Using default redirect.`);
+          router.push(DEFAULT_LOGIN_REDIRECT);
         } else {
-          console.error('No result from signIn');
+          console.error(`[AuthForm] Unexpected result from signIn at ${new Date().toISOString()}:`, JSON.stringify(result, null, 2));
           toast.error('An unexpected error occurred. Please try again.');
         }
       } else {
@@ -122,8 +111,15 @@ function AuthForm({ variant }: AuthFormProps) {
         }
       }
     } catch (err) {
-      console.error('Error during form submission:', err);
-      toast.error('Oops. Something went wrong.');
+      console.error(`[AuthForm] Unexpected error during form submission at ${new Date().toISOString()}:`);
+      if (err instanceof Error) {
+        console.error(`Error name: ${err.name}`);
+        console.error(`Error message: ${err.message}`);
+        console.error(`Error stack: ${err.stack}`);
+        console.error(`Network status: ${navigator.onLine ? 'Online' : 'Offline'}, API URL: ${process.env.NEXT_PUBLIC_API_URL}`);
+        console.error(JSON.stringify(err, null, 2));
+      }
+      toast.error('An unexpected error occurred. Please try again.');
       setIsLoading(false);
     } finally {
       setIsLoading(false);

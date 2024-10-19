@@ -16,14 +16,14 @@ export const useLayoutStore = create<InterfaceStore>((set) => ({
   showLeftSidebar: true,
   showSettingsOverlay: false,
   showTaskOverlay: false,
-  toggleLeftSidebar: () =>
+  toggleLeftSidebar: (): void =>
     set((state) => ({ showLeftSidebar: !state.showLeftSidebar })),
-  toggleSettingsOverlay: () =>
+  toggleSettingsOverlay: (): void =>
     set((state) => ({ showSettingsOverlay: !state.showSettingsOverlay })),
-  toggleTaskOverlay: () =>
+  toggleTaskOverlay: (): void =>
     set((state) => ({ showTaskOverlay: !state.showTaskOverlay })),
-  closeTaskOverlay: () => set(() => ({ showTaskOverlay: false })),
-  setTaskOverlay: (open: boolean) => set(() => ({ showTaskOverlay: open })),
-  setSettingsOverlay: (open: boolean) =>
+  closeTaskOverlay: (): void => set(() => ({ showTaskOverlay: false })),
+  setTaskOverlay: (open: boolean): void => set(() => ({ showTaskOverlay: open })),
+  setSettingsOverlay: (open: boolean): void =>
     set(() => ({ showSettingsOverlay: open })),
 }));
