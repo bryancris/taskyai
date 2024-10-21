@@ -155,8 +155,12 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
             {
                 app.UseDeveloperExceptionPage();
                 app.UseSwagger();
-                Console.WriteLine($"[{DateTime.UtcNow}] Swagger enabled for development environment");
-                app.UseSwaggerUI();
+    Console.WriteLine($"[{DateTime.UtcNow}] Swagger enabled for development environment using HTTP");
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "My API V1");
+        c.RoutePrefix = "swagger";
+    });
             }
             else
             {

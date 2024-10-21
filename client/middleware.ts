@@ -1,13 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import {
   DEFAULT_LOGIN_REDIRECT,
   apiAuthPrefix,
   publicRoutes,
   authRoutes,
-} from "@/routes";
+} from "./routes";
 import { auth } from "@/lib/auth";
 
-export default auth((req) => {
+export { auth as default } from "@/lib/auth";
+
+export const middleware = async (req: NextRequest) => {
   const { nextUrl, auth: session } = req;
 
   const isApiAuthRoute = nextUrl.pathname.startsWith(apiAuthPrefix);
@@ -30,9 +32,9 @@ export default auth((req) => {
   }
 
   return NextResponse.next();
-});
+};
 
-// Optionally, don't invoke Middleware on some paths
+// Configure which routes to run middleware on
 export const config = {
-  matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"]
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"]
 };

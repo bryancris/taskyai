@@ -35,69 +35,77 @@ namespace server.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<object>> Login(UserDto req)
         {
-            Console.WriteLine($"Login attempt for email: {req.Email}");
+            Console.WriteLine($"[{DateTime.UtcNow}] Login attempt started for email: {req.Email}");
+            Console.WriteLine($"[{DateTime.UtcNow}] Request details: {JsonSerializer.Serialize(req, new JsonSerializerOptions { WriteIndented = true })}");
             
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == req.Email);
-            if (user == null)
+            try
             {
-                return NotFound("User not found.");
+                Console.WriteLine($"[{DateTime.UtcNow}] Attempting to find user in database for email: {req.Email}");
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == req.Email);
+                Console.WriteLine($"[{DateTime.UtcNow}] Database query completed. User found: {user != null}");
+                if (user == null)
+                {
+                    Console.WriteLine($"[{DateTime.UtcNow}] User not found for email: {req.Email}");
+                    return NotFound("User not found.");
+                }
+
+                Console.WriteLine($"[{DateTime.UtcNow}] User found for email: {req.Email}, verifying password");
+                Console.WriteLine($"[{DateTime.UtcNow}] Password hash length: {user.PasswordHash?.Length}, Salt length: {user.PasswordSalt?.Length}");
+                bool isPasswordValid = _auth.VerifyPasswordHash(req.Password, user.PasswordHash, user.PasswordSalt);
+                Console.WriteLine($"[{DateTime.UtcNow}] Password verification result: {isPasswordValid}");
+                if (!isPasswordValid)
+                {
+                    Console.WriteLine($"[{DateTime.UtcNow}] Invalid credentials for email: {req.Email}");
+                    return Unauthorized("Invalid credentials.");
+                }
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Password verified for email: {req.Email}, creating token");
+                string token = _auth.CreateToken(user);
+                Console.WriteLine($"[{DateTime.UtcNow}] Token created for email: {req.Email}, length: {token.Length}");
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Generating refresh token for email: {req.Email}");
+                var refreshToken = _auth.GenerateRefreshToken();
+                Console.WriteLine($"[{DateTime.UtcNow}] Refresh token generated for email: {req.Email}, length: {refreshToken.Token.Length}");
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Setting refresh token in response for email: {req.Email}");
+                _auth.SetRefreshToken(refreshToken, Response);
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Preparing response object for email: {req.Email}");
+                var response = new
+                {
+                    id = user.Id.ToString(),
+                    email = user.Email,
+                    name = user.Username,
+                    token = token,
+                    refreshToken = refreshToken.Token
+                };
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Login successful for email: {req.Email}");
+                Console.WriteLine($"[{DateTime.UtcNow}] Response prepared: {JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true, DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull })}");
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Returning Ok result for email: {req.Email}");
+                return Ok(response);
             }
-
-            if (!_auth.VerifyPasswordHash(req.Password, user.PasswordHash, user.PasswordSalt))
+            catch (Exception ex)
             {
-                return Unauthorized("Invalid credentials.");
+                Console.WriteLine($"[{DateTime.UtcNow}] Error during login: {ex.Message}");
+                Console.WriteLine($"[{DateTime.UtcNow}] Stack trace: {ex.StackTrace}");
+                Console.WriteLine($"[{DateTime.UtcNow}] Exception type: {ex.GetType().FullName}");
+                
+                if (ex is DbUpdateException dbEx)
+                {
+                    Console.WriteLine($"[{DateTime.UtcNow}] Database error details:");
+                    Console.WriteLine($"  Message: {dbEx.InnerException?.Message}");
+                    Console.WriteLine($"  SQL: {dbEx.InnerException?.Data["Sql"]}");
+                    Console.WriteLine($"  Params: {dbEx.InnerException?.Data["Params"]}");
+                }
+
+                if (ex is ArgumentNullException argNullEx)
+                {
+                    Console.WriteLine($"[{DateTime.UtcNow}] Argument null exception. Parameter name: {argNullEx.ParamName}");
+                }
+                
+                Console.WriteLine($"[{DateTime.UtcNow}] Returning 500 Internal Server Error for login attempt");
+                return StatusCode(500, new { error = "An error occurred during login. Please try again later.", details = ex.Message });
             }
-
-            string token = _auth.CreateToken(user);
-
-            var refreshToken = _auth.GenerateRefreshToken();
-            _auth.SetRefreshToken(refreshToken, Response);
-
-            return Ok(new
-            {
-                id = user.Id.ToString(),
-                email = user.Email,
-                name = user.Username,
-                token = token,
-                refreshToken = refreshToken.Token
-            });
         }
-
-        [HttpPost("register")]
-        public async Task<ActionResult<User>> Register(UserDto request)
-        {
-            Console.WriteLine($"Registration attempt for email: {request.Email}");
-
-            if (await _context.Users.AnyAsync(u => u.Email == request.Email))
-            {
-                return BadRequest("Email already exists.");
-            }
-
-            _auth.CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
-
-            var user = new User
-            {
-                Username = request.Username,
-                Email = request.Email,
-                PasswordHash = passwordHash,
-                PasswordSalt = passwordSalt
-            };
-
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            string token = _auth.CreateToken(user);
-
-            return Ok(new { user = user, token = token });
-        }
-
-        [HttpGet("users/count")]
-        public async Task<ActionResult<int>> GetUserCount()
-        {
-            var count = await _context.Users.CountAsync();
-            return Ok(count);
-        }
-
-        // RefreshToken class and GenerateRefreshToken method are now in AuthUtils
-    }
-}
