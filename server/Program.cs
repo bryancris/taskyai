@@ -35,6 +35,7 @@ Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}\n");
             Console.WriteLine($"[{DateTime.UtcNow}] Connection string: {connectionString}");
             builder.Services.AddDbContext<ApplicationContext>(options =>
             {
+                Console.WriteLine($"[{DateTime.UtcNow}] Configuring DbContext with connection string: {connectionString}");
                 options.UseNpgsql(connectionString);
                 options.LogTo(Console.WriteLine, LogLevel.Information);
                 options.EnableSensitiveDataLogging();
@@ -46,7 +47,7 @@ Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}\n");
                         .AddFilter(level => level >= LogLevel.Information);
                 }));
             });
-Console.WriteLine($"[{DateTime.UtcNow}] DbContext configured with connection string");
+            Console.WriteLine($"[{DateTime.UtcNow}] DbContext configured with connection string");
 
             // Test database connection
             try
@@ -55,15 +56,21 @@ Console.WriteLine($"[{DateTime.UtcNow}] DbContext configured with connection str
                 using (var scope = serviceProvider.CreateScope())
                 {
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationContext>();
+                    Console.WriteLine($"[{DateTime.UtcNow}] Attempting to connect to the database...");
+                    Console.WriteLine($"[{DateTime.UtcNow}] Connection string: {connectionString}");
                     var canConnect = context.Database.CanConnect();
                     Console.WriteLine($"Database connection test result: {(canConnect ? "Success" : "Failure")}");
                     Console.WriteLine($"[{DateTime.UtcNow}] Database provider: {context.Database.ProviderName}");
                     if (!canConnect)
                     {
                         Console.WriteLine($"[{DateTime.UtcNow}] Failed to connect to the database. Please check your connection string and ensure the database server is running.");
+                        Console.WriteLine($"[{DateTime.UtcNow}] Connection string used: {connectionString}");
                         throw new Exception("Failed to connect to the database.");
                     }
                     Console.WriteLine($"[{DateTime.UtcNow}] Successfully connected to the database.");
+                    // Test a simple query
+                    var userCount = context.Users.Count();
+                    Console.WriteLine($"[{DateTime.UtcNow}] Number of users in the database: {userCount}");
                 }
             }
             catch (Exception ex)
@@ -119,16 +126,18 @@ Console.WriteLine($"[{DateTime.UtcNow}] DbContext configured with connection str
                 options.AddPolicy("AllowAll", builder =>
                 {
                     builder
-                           .SetIsOriginAllowed(_ => true)
-                           .AllowAnyMethod()
-                           .AllowAnyHeader()
-                           .AllowCredentials()
-                           .WithExposedHeaders("Content-Disposition")
-                           .WithOrigins("http://localhost:3000")
-                           .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                           .WithHeaders("Authorization", "Content-Type");
+            .SetIsOriginAllowed(_ => true)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials()
+            .WithExposedHeaders("Content-Disposition")
+            .WithOrigins("http://localhost:3000")
+            .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+            .WithHeaders("Authorization", "Content-Type");
                 });
-                Console.WriteLine("CORS policy configured");
+    Console.WriteLine($"[{DateTime.UtcNow}] CORS policy configured");
+    Console.WriteLine($"[{DateTime.UtcNow}] Allowed origins: http://localhost:3000");
+    Console.WriteLine($"[{DateTime.UtcNow}] Allowed methods: GET, POST, PUT, DELETE, OPTIONS");
             });
 
             // Add logging middleware
@@ -184,6 +193,8 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
             // Add middleware to log all requests
             app.Use(async (context, next) =>
             {
+                Console.WriteLine($"[{DateTime.UtcNow}] Middleware: Request received");
+                Console.WriteLine($"[{DateTime.UtcNow}] Request details: {context.Request.Method} {context.Request.Path} {context.Request.QueryString}");
                 Console.WriteLine($"[{DateTime.UtcNow}] Request started: {context.Request.Method} {context.Request.Path}");
                 Console.WriteLine($"[{DateTime.UtcNow}] Incoming request: {context.Request.Method} {context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.QueryString}");
                 Console.WriteLine($"Request headers: {string.Join("\n", context.Request.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))}");
@@ -213,8 +224,10 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
 
                 try
                 {
+                    Console.WriteLine($"[{DateTime.UtcNow}] Middleware: About to execute request pipeline");
                     Console.WriteLine($"[{DateTime.UtcNow}] Executing request pipeline for {context.Request.Method} {context.Request.Path}");
-                    Console.WriteLine($"[{DateTime.UtcNow}] Executing request pipeline");
+                    Console.WriteLine($"[{DateTime.UtcNow}] Request pipeline execution started");
+                    var startTime = DateTime.UtcNow;
                     await next.Invoke();
                     Console.WriteLine($"[{DateTime.UtcNow}] Request pipeline completed successfully");
                 }
@@ -246,8 +259,11 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
                     using (var scope = app.Services.CreateScope())
                     {
                         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationContext>();
-                        Console.WriteLine($"Database connection state: {dbContext.Database.GetConnectionString()}");
-                        Console.WriteLine($"Can connect to database: {dbContext.Database.CanConnect()}");
+                        var connectionString = dbContext.Database.GetConnectionString();
+                        Console.WriteLine($"Database connection string: {connectionString}");
+                        var canConnect = dbContext.Database.CanConnect();
+                        Console.WriteLine($"Can connect to database: {canConnect}");
+                        Console.WriteLine($"Database state: {dbContext.Database.GetDbConnection().State}");
                         Console.WriteLine($"Database provider: {dbContext.Database.ProviderName}");
                     }
                     
@@ -270,14 +286,17 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
                         Console.WriteLine($"{header.Key}: {string.Join(", ", header.Value)}");
                     }
 
-                    Console.WriteLine($"[{DateTime.UtcNow}] Request completed: {context.Request.Method} {context.Request.Path}");
+                    var endTime = DateTime.UtcNow;
+                    Console.WriteLine($"[{endTime}] Request completed: {context.Request.Method} {context.Request.Path} (Duration: {(endTime - startTime).TotalMilliseconds}ms)");
                 }
             });
 
             // Add global exception handler
             app.Use(async (context, next) =>
             {
+                Console.WriteLine($"[{DateTime.UtcNow}] Global exception handler: Request started");
                 await next.Invoke();
+                Console.WriteLine($"[{DateTime.UtcNow}] Global exception handler: Request completed");
                 Console.WriteLine($"[{DateTime.UtcNow}] Request completed. Method: {context.Request.Method}, Path: {context.Request.Path}, Status code: {context.Response.StatusCode}");
             });
 

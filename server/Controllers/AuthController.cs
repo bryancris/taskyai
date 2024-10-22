@@ -36,76 +36,130 @@ namespace server.Controllers
         public async Task<ActionResult<object>> Login(UserDto req)
         {
             Console.WriteLine($"[{DateTime.UtcNow}] Login attempt started for email: {req.Email}");
-            Console.WriteLine($"[{DateTime.UtcNow}] Request details: {JsonSerializer.Serialize(req, new JsonSerializerOptions { WriteIndented = true })}");
-            
             try
             {
-                Console.WriteLine($"[{DateTime.UtcNow}] Attempting to find user in database for email: {req.Email}");
+                Console.WriteLine($"[{DateTime.UtcNow}] Attempting to find user in database");
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == req.Email);
-                Console.WriteLine($"[{DateTime.UtcNow}] Database query completed. User found: {user != null}");
+                Console.WriteLine($"[{DateTime.UtcNow}] User found: {user != null}");
+
                 if (user == null)
                 {
-                    Console.WriteLine($"[{DateTime.UtcNow}] User not found for email: {req.Email}");
-                    return NotFound("User not found.");
+                    Console.WriteLine($"[{DateTime.UtcNow}] Login failed: User not found for email {req.Email}");
+                    return Unauthorized("Invalid email or password.");
                 }
 
-                Console.WriteLine($"[{DateTime.UtcNow}] User found for email: {req.Email}, verifying password");
-                Console.WriteLine($"[{DateTime.UtcNow}] Password hash length: {user.PasswordHash?.Length}, Salt length: {user.PasswordSalt?.Length}");
-                bool isPasswordValid = _auth.VerifyPasswordHash(req.Password, user.PasswordHash, user.PasswordSalt);
-                Console.WriteLine($"[{DateTime.UtcNow}] Password verification result: {isPasswordValid}");
-                if (!isPasswordValid)
+                Console.WriteLine($"[{DateTime.UtcNow}] Verifying password for user {user.Id}");
+                if (!_auth.VerifyPasswordHash(req.Password, user.PasswordHash, user.PasswordSalt))
                 {
-                    Console.WriteLine($"[{DateTime.UtcNow}] Invalid credentials for email: {req.Email}");
-                    return Unauthorized("Invalid credentials.");
+                    Console.WriteLine($"[{DateTime.UtcNow}] Login failed: Invalid password for user {user.Id}");
+                    return Unauthorized("Invalid email or password.");
                 }
 
-                Console.WriteLine($"[{DateTime.UtcNow}] Password verified for email: {req.Email}, creating token");
-                string token = _auth.CreateToken(user);
-                Console.WriteLine($"[{DateTime.UtcNow}] Token created for email: {req.Email}, length: {token.Length}");
+                Console.WriteLine($"[{DateTime.UtcNow}] Password verified for user {user.Id}");
+                Console.WriteLine($"[{DateTime.UtcNow}] Starting JWT token creation for user {user.Id}");
 
-                Console.WriteLine($"[{DateTime.UtcNow}] Generating refresh token for email: {req.Email}");
-                var refreshToken = _auth.GenerateRefreshToken();
-                Console.WriteLine($"[{DateTime.UtcNow}] Refresh token generated for email: {req.Email}, length: {refreshToken.Token.Length}");
-
-                Console.WriteLine($"[{DateTime.UtcNow}] Setting refresh token in response for email: {req.Email}");
-                _auth.SetRefreshToken(refreshToken, Response);
-
-                Console.WriteLine($"[{DateTime.UtcNow}] Preparing response object for email: {req.Email}");
-                var response = new
+                string token;
+                try
                 {
-                    id = user.Id.ToString(),
+                    token = CreateToken(user);
+                }
+                catch (Exception tokenEx)
+                {
+                    Console.WriteLine($"[{DateTime.UtcNow}] Error creating JWT token: {tokenEx.Message}");
+                    Console.WriteLine($"[{DateTime.UtcNow}] Token creation stack trace: {tokenEx.StackTrace}");
+                    return StatusCode(500, "An error occurred during token creation.");
+                }
+
+                Console.WriteLine($"[{DateTime.UtcNow}] JWT token created for user {user.Id}");
+                Console.WriteLine($"[{DateTime.UtcNow}] JWT token: {token}");
+
+                RefreshToken refreshToken;
+                try
+                {
+                    refreshToken = GenerateRefreshToken();
+                }
+                catch (Exception refreshEx)
+                {
+                    Console.WriteLine($"[{DateTime.UtcNow}] Error generating refresh token: {refreshEx.Message}");
+                    Console.WriteLine($"[{DateTime.UtcNow}] Refresh token generation stack trace: {refreshEx.StackTrace}");
+                    return StatusCode(500, "An error occurred during refresh token generation.");
+                }
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Refresh token generated for user {user.Id}");
+                Console.WriteLine($"[{DateTime.UtcNow}] Refresh token: {refreshToken.Token}");
+
+                try
+                {
+                    SetRefreshToken(refreshToken, user);
+                }
+                catch (Exception setRefreshEx)
+                {
+                    Console.WriteLine($"[{DateTime.UtcNow}] Error setting refresh token: {setRefreshEx.Message}");
+                    Console.WriteLine($"[{DateTime.UtcNow}] Set refresh token stack trace: {setRefreshEx.StackTrace}");
+                    return StatusCode(500, "An error occurred while setting the refresh token.");
+                }
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Refresh token set for user {user.Id}");
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Login successful for user {user.Id}");
+                return Ok(new
+                {
+                    id = user.Id,
                     email = user.Email,
-                    name = user.Username,
+                    name = user.Name,
                     token = token,
                     refreshToken = refreshToken.Token
-                };
-
-                Console.WriteLine($"[{DateTime.UtcNow}] Login successful for email: {req.Email}");
-                Console.WriteLine($"[{DateTime.UtcNow}] Response prepared: {JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true, DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull })}");
-
-                Console.WriteLine($"[{DateTime.UtcNow}] Returning Ok result for email: {req.Email}");
-                return Ok(response);
+                });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[{DateTime.UtcNow}] Error during login: {ex.Message}");
+                Console.WriteLine($"[{DateTime.UtcNow}] Error during login process: {ex.Message}");
                 Console.WriteLine($"[{DateTime.UtcNow}] Stack trace: {ex.StackTrace}");
-                Console.WriteLine($"[{DateTime.UtcNow}] Exception type: {ex.GetType().FullName}");
-                
-                if (ex is DbUpdateException dbEx)
-                {
-                    Console.WriteLine($"[{DateTime.UtcNow}] Database error details:");
-                    Console.WriteLine($"  Message: {dbEx.InnerException?.Message}");
-                    Console.WriteLine($"  SQL: {dbEx.InnerException?.Data["Sql"]}");
-                    Console.WriteLine($"  Params: {dbEx.InnerException?.Data["Params"]}");
-                }
+                Console.WriteLine($"[{DateTime.UtcNow}] Detailed exception: {JsonSerializer.Serialize(ex)}");
+                return StatusCode(500, "An error occurred during the login process.");
+            }
+        }
 
-                if (ex is ArgumentNullException argNullEx)
+        private string CreateToken(User user)
+        {
+            Console.WriteLine($"[{DateTime.UtcNow}] Creating JWT token for user {user.Id}");
+            try
+            {
+                List<Claim> claims = new List<Claim>
                 {
-                    Console.WriteLine($"[{DateTime.UtcNow}] Argument null exception. Parameter name: {argNullEx.ParamName}");
-                }
-                
-                Console.WriteLine($"[{DateTime.UtcNow}] Returning 500 Internal Server Error for login attempt");
-                return StatusCode(500, new { error = "An error occurred during login. Please try again later.", details = ex.Message });
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new Claim(ClaimTypes.Name, user.Email),
+                    new Claim(ClaimTypes.Role, user.Role)
+                };
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Claims created: {JsonSerializer.Serialize(claims)}");
+
+                var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+                    _config.GetSection("AppSettings:Token").Value));
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Symmetric key created");
+
+                var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
+
+                Console.WriteLine($"[{DateTime.UtcNow}] Signing credentials created");
+
+                var token = new JwtSecurityToken(
+                    claims: claims,
+                    expires: DateTime.Now.AddDays(1),
+                    signingCredentials: creds);
+
+                Console.WriteLine($"[{DateTime.UtcNow}] JWT token object created");
+
+                var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+
+                Console.WriteLine($"[{DateTime.UtcNow}] JWT token string created");
+
+                return jwt;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{DateTime.UtcNow}] Error in CreateToken: {ex.Message}");
+                Console.WriteLine($"[{DateTime.UtcNow}] CreateToken stack trace: {ex.StackTrace}");
+                throw;
             }
         }

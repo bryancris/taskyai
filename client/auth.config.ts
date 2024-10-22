@@ -32,17 +32,17 @@ const authConfig: NextAuthConfig = {
 
         try {
           const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:7232';
-          console.log(`[NextAuth] API URL:`, apiUrl);
+          console.log(`[NextAuth] API URL: ${apiUrl}`);
           if (!apiUrl || apiUrl === 'undefined') {
             console.error('NEXT_PUBLIC_API_URL is not set');
             throw new Error('NEXT_PUBLIC_API_URL is not set');
           }
 
           console.log(`[NextAuth] Preparing to send login request`);
-          console.log(`[NextAuth] Sending login request to: ${apiUrl}/api/login`);
+          console.log(`[NextAuth] Sending login request to: ${apiUrl}/login`);
 
           const axiosConfig = {
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             timeout: 10000, // 10 seconds timeout
             validateStatus: (status) => status >= 200 && status < 300, // Only treat 2xx status codes as successful
           };
@@ -51,7 +51,7 @@ const authConfig: NextAuthConfig = {
             console.log('[NextAuth] Development mode: Using HTTP');
           }
 
-          console.log(`[NextAuth] Sending POST request to ${apiUrl}/api/login`);
+          console.log(`[NextAuth] Sending POST request to ${apiUrl}/login`);
           const response = await axios.post<{ id: string; email: string; name: string; token: string; refreshToken: string }>(
             `${apiUrl}/api/login`,
             { email, password },
@@ -59,7 +59,7 @@ const authConfig: NextAuthConfig = {
           );
 
           console.log(`[NextAuth] Response received:`, { status: response.status, statusText: response.statusText });
-          console.log(`[NextAuth] Login response received at ${new Date().toISOString()}:`, { status: response.status, headers: response.headers, data: JSON.stringify(response.data, (key, value) => ['token', 'accessToken', 'refreshToken'].includes(key) ? '[REDACTED]' : value, 2) });
+          console.log(`[NextAuth] Login response received at ${new Date().toISOString()}:`, { status: response.status, headers: JSON.stringify(response.headers), data: JSON.stringify(response.data, (key, value) => ['token', 'accessToken', 'refreshToken'].includes(key) ? '[REDACTED]' : value, 2) });
 
           if (!response.data || typeof response.data !== 'object') {
             console.error('Login failed: Invalid response data', response.status, JSON.stringify(response.data, null, 2));
@@ -93,7 +93,7 @@ const authConfig: NextAuthConfig = {
           if (error instanceof AxiosError) {
             console.error('[NextAuth] Axios error:', error.message);
             console.error('[NextAuth] Error status:', error.response?.status);
-            console.error('[NextAuth] Error time:', new Date().toISOString());
+            console.error('[NextAuth] Error time:', new Date().toISOString(), 'Error code:', error.code);
             console.error('Response data:', error.response?.data ? JSON.stringify(error.response.data, null, 2) : 'No response data');
             console.error('Request config:', error.config);
             if (error.response?.status === 404) {
@@ -103,6 +103,9 @@ const authConfig: NextAuthConfig = {
             console.error('Error stack:', error.stack || 'No stack trace available');
             console.error('Request URL:', error.config?.url);
             console.error('Network status:', typeof window !== 'undefined' ? (window.navigator.onLine ? 'Online' : 'Offline') : 'Unknown (server-side)');
+            console.error('Full error object:', JSON.stringify(error, null, 2));
+            console.error('Request headers:', error.config?.headers);
+            console.error('Response headers:', error.response?.headers);
           } else if (error instanceof Error) {
             console.error('[NextAuth] Error during login:', error.message, 'Stack:', error.stack);
           } else {
