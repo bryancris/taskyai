@@ -1,8 +1,7 @@
-import NextAuth, { AuthOptions } from 'next-auth';
-import type { AuthOptions } from 'next-auth';
+import NextAuth from 'next-auth';
 import authConfig from '@/auth.config';
 
-export const authOptions: AuthOptions = authConfig;
-
-const handler = NextAuth(authOptions);
+const handler = NextAuth(authConfig);
+console.log('[NextAuth] Route handler initialized');
+ 
 export { handler as GET, handler as POST };

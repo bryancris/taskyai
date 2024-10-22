@@ -197,7 +197,9 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
                 Console.WriteLine($"[{DateTime.UtcNow}] Request details: {context.Request.Method} {context.Request.Path} {context.Request.QueryString}");
                 Console.WriteLine($"[{DateTime.UtcNow}] Request started: {context.Request.Method} {context.Request.Path}");
                 Console.WriteLine($"[{DateTime.UtcNow}] Incoming request: {context.Request.Method} {context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.QueryString}");
+    Console.WriteLine($"[{DateTime.UtcNow}] Request headers:");
                 Console.WriteLine($"Request headers: {string.Join("\n", context.Request.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}"))}");
+    Console.WriteLine($"[{DateTime.UtcNow}] Request body:");
 
                 // Log CORS-specific headers
                 Console.WriteLine($"Origin: {context.Request.Headers["Origin"]}");
@@ -212,6 +214,7 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
                     Console.WriteLine($"Request body (raw): {body}");
                     try
                     {
+            Console.WriteLine($"[{DateTime.UtcNow}] Attempting to parse request body as JSON");
                         var jsonBody = System.Text.Json.JsonSerializer.Deserialize<object>(body);
                         Console.WriteLine($"Request body (parsed): {System.Text.Json.JsonSerializer.Serialize(jsonBody, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })}");
                     }
@@ -228,8 +231,10 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
                     Console.WriteLine($"[{DateTime.UtcNow}] Executing request pipeline for {context.Request.Method} {context.Request.Path}");
                     Console.WriteLine($"[{DateTime.UtcNow}] Request pipeline execution started");
                     var startTime = DateTime.UtcNow;
+        Console.WriteLine($"[{DateTime.UtcNow}] About to invoke next middleware");
                     await next.Invoke();
                     Console.WriteLine($"[{DateTime.UtcNow}] Request pipeline completed successfully");
+        Console.WriteLine($"[{DateTime.UtcNow}] Response status code: {context.Response.StatusCode}");
                 }
                 catch (Exception ex)
                 {
@@ -238,6 +243,7 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
                     Console.WriteLine($"Stack trace: {ex.StackTrace ?? "No stack trace available"}");
                     Console.WriteLine($"Exception type: {ex.GetType().FullName}");
                     Console.WriteLine($"Inner exception: {ex.InnerException?.Message ?? "No inner exception"}");
+        Console.WriteLine($"[{DateTime.UtcNow}] Full exception details: {JsonSerializer.Serialize(ex, new JsonSerializerOptions { WriteIndented = true })}");
                     
                     if (ex is DbUpdateException dbEx)
                     {
@@ -268,6 +274,7 @@ Console.WriteLine($"[{DateTime.UtcNow}] Building the application");
                     }
                     
                     context.Response.StatusCode = 500;
+        Console.WriteLine($"[{DateTime.UtcNow}] Setting response status code to 500");
                     await context.Response.WriteAsJsonAsync(new { message = "An unexpected error occurred. Please try again later.", error = ex.Message, stackTrace = ex.StackTrace, innerException = ex.InnerException?.Message });
                 }
                 finally

@@ -40,7 +40,7 @@ namespace server.Controllers
             {
                 Console.WriteLine($"[{DateTime.UtcNow}] Attempting to find user in database");
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == req.Email);
-                Console.WriteLine($"[{DateTime.UtcNow}] User found: {user != null}");
+                Console.WriteLine($"[{DateTime.UtcNow}] Database query completed. User found: {user != null}");
 
                 if (user == null)
                 {
@@ -57,47 +57,12 @@ namespace server.Controllers
 
                 Console.WriteLine($"[{DateTime.UtcNow}] Password verified for user {user.Id}");
                 Console.WriteLine($"[{DateTime.UtcNow}] Starting JWT token creation for user {user.Id}");
-
-                string token;
-                try
-                {
-                    token = CreateToken(user);
-                }
-                catch (Exception tokenEx)
-                {
-                    Console.WriteLine($"[{DateTime.UtcNow}] Error creating JWT token: {tokenEx.Message}");
-                    Console.WriteLine($"[{DateTime.UtcNow}] Token creation stack trace: {tokenEx.StackTrace}");
-                    return StatusCode(500, "An error occurred during token creation.");
-                }
+                string token = CreateToken(user);
 
                 Console.WriteLine($"[{DateTime.UtcNow}] JWT token created for user {user.Id}");
-                Console.WriteLine($"[{DateTime.UtcNow}] JWT token: {token}");
 
-                RefreshToken refreshToken;
-                try
-                {
-                    refreshToken = GenerateRefreshToken();
-                }
-                catch (Exception refreshEx)
-                {
-                    Console.WriteLine($"[{DateTime.UtcNow}] Error generating refresh token: {refreshEx.Message}");
-                    Console.WriteLine($"[{DateTime.UtcNow}] Refresh token generation stack trace: {refreshEx.StackTrace}");
-                    return StatusCode(500, "An error occurred during refresh token generation.");
-                }
-
-                Console.WriteLine($"[{DateTime.UtcNow}] Refresh token generated for user {user.Id}");
-                Console.WriteLine($"[{DateTime.UtcNow}] Refresh token: {refreshToken.Token}");
-
-                try
-                {
-                    SetRefreshToken(refreshToken, user);
-                }
-                catch (Exception setRefreshEx)
-                {
-                    Console.WriteLine($"[{DateTime.UtcNow}] Error setting refresh token: {setRefreshEx.Message}");
-                    Console.WriteLine($"[{DateTime.UtcNow}] Set refresh token stack trace: {setRefreshEx.StackTrace}");
-                    return StatusCode(500, "An error occurred while setting the refresh token.");
-                }
+                var refreshToken = GenerateRefreshToken();
+                SetRefreshToken(refreshToken, user);
 
                 Console.WriteLine($"[{DateTime.UtcNow}] Refresh token set for user {user.Id}");
 
@@ -115,51 +80,32 @@ namespace server.Controllers
             {
                 Console.WriteLine($"[{DateTime.UtcNow}] Error during login process: {ex.Message}");
                 Console.WriteLine($"[{DateTime.UtcNow}] Stack trace: {ex.StackTrace}");
-                Console.WriteLine($"[{DateTime.UtcNow}] Detailed exception: {JsonSerializer.Serialize(ex)}");
-                return StatusCode(500, "An error occurred during the login process.");
+                return StatusCode(500, new { error = "An error occurred during the login process.", details = ex.Message });
             }
         }
 
         private string CreateToken(User user)
         {
-            Console.WriteLine($"[{DateTime.UtcNow}] Creating JWT token for user {user.Id}");
-            try
+            List<Claim> claims = new List<Claim>
             {
-                List<Claim> claims = new List<Claim>
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                    new Claim(ClaimTypes.Name, user.Email),
-                    new Claim(ClaimTypes.Role, user.Role)
-                };
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Name, user.Email),
+                new Claim(ClaimTypes.Role, user.Role)
+            };
 
-                Console.WriteLine($"[{DateTime.UtcNow}] Claims created: {JsonSerializer.Serialize(claims)}");
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+                _config.GetSection("AppSettings:Token").Value));
 
-                var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-                    _config.GetSection("AppSettings:Token").Value));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
 
-                Console.WriteLine($"[{DateTime.UtcNow}] Symmetric key created");
+            var token = new JwtSecurityToken(
+                claims: claims,
+                expires: DateTime.Now.AddDays(1),
+                signingCredentials: creds);
 
-                var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
+            var jwt = new JwtSecurityTokenHandler().WriteToken(token);
 
-                Console.WriteLine($"[{DateTime.UtcNow}] Signing credentials created");
-
-                var token = new JwtSecurityToken(
-                    claims: claims,
-                    expires: DateTime.Now.AddDays(1),
-                    signingCredentials: creds);
-
-                Console.WriteLine($"[{DateTime.UtcNow}] JWT token object created");
-
-                var jwt = new JwtSecurityTokenHandler().WriteToken(token);
-
-                Console.WriteLine($"[{DateTime.UtcNow}] JWT token string created");
-
-                return jwt;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[{DateTime.UtcNow}] Error in CreateToken: {ex.Message}");
-                Console.WriteLine($"[{DateTime.UtcNow}] CreateToken stack trace: {ex.StackTrace}");
-                throw;
-            }
+            return jwt;
         }
+    }
+}

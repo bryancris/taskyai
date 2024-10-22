@@ -1,13 +1,12 @@
 import { NextResponse, NextRequest } from "next/server";
+import { auth } from "./auth";
 import {
   DEFAULT_LOGIN_REDIRECT,
   apiAuthPrefix,
   publicRoutes,
   authRoutes,
 } from "./routes";
-import { auth } from "@/lib/auth";
 
-export { auth as default } from "@/lib/auth";
 
 export const middleware = async (req: NextRequest) => {
   const { nextUrl, auth: session } = req;
